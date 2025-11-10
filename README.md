@@ -1,20 +1,20 @@
 import pandas as pd
-from datetime import time
 
-# Загружаем файл
 df = pd.read_excel("your_file.xlsx")
 
-# Преобразуем M в datetime (дата + время если было)
-df['M'] = pd.to_datetime(df['M'], format='%d.%m.%Y', errors='coerce')
+# Преобразуем столбец M в datetime (если там только дата — это нормально)
+df['M'] = pd.to_datetime(df['M'], errors='coerce')
 
-# Получаем номер дня недели: Monday=0 ... Sunday=6
-weekday = df['M'].dt.weekday
+# Список значений дней недели, при которых нужно менять время
+weekdays_target = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пн', 'Вт', 'Ср', 'Чт']
 
-# Условие: Пн(0), Вт(1), Ср(2), Чт(3)
-mask = weekday.isin([0, 1, 2, 3])
+# Создаем логическую маску
+mask = df['N'].isin(weekdays_target)
 
-# Меняем время на 08:15:00
+# Меняем время на 08:15:00 (сохраняя дату)
 df.loc[mask, 'M'] = df.loc[mask, 'M'].dt.normalize() + pd.Timedelta(hours=8, minutes=15)
 
-# Сохраняем обратно
+# Если нужно сохранить в формате строки dd.mm.yyyy HH:MM:SS:
+df['M'] = df['M'].dt.strftime('%d.%m.%Y %H:%M:%S')
+
 df.to_excel("your_file_updated.xlsx", index=False)
