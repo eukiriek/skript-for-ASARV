@@ -26,3 +26,14 @@ df['M'] = pd.to_datetime(df['M'], errors='coerce')
 df['DayOfWeek'] = df['M'].dt.day_name()
 
 df.to_excel("your_file_with_dayofweek.xlsx", index=False)
+import pandas as pd
+
+df = pd.read_excel("your_file.xlsx")
+
+# Преобразуем дату из формата dd.mm.yyyy
+df['M'] = pd.to_datetime(df['M'], format='%d.%m.%Y', errors='coerce')
+
+# Сохраняем в формате mm.dd.yyyy (как текст)
+df['M'] = df['M'].dt.strftime('%m.%d.%Y')
+
+df.to_excel("your_file_converted.xlsx", index=False)
