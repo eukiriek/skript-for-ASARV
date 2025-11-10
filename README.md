@@ -26,3 +26,17 @@ df = pd.read_excel("your_file.xlsx")
 df['M'] = pd.to_datetime(df['M'], errors='coerce').dt.strftime('%H:%M:%S')
 
 df.to_excel("your_file_time_formatted.xlsx", index=False)
+
+
+import pandas as pd
+
+df = pd.read_excel("your_file.xlsx")
+
+# Приводим колонку M к формату времени
+df['M'] = pd.to_datetime(df['M'], errors='coerce').dt.strftime('%H:%M:%S')
+
+# Удаляем строки, где время отсутствует или равно 00:00:00
+df = df[ df['M'].notna() & (df['M'] != '00:00:00') ]
+
+df.to_excel("your_file_time_filtered.xlsx", index=False)
+
