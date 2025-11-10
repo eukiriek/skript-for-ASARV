@@ -1,39 +1,20 @@
 import pandas as pd
+from datetime import time
 
+# Загружаем файл
 df = pd.read_excel("your_file.xlsx")
 
-# Преобразуем M в формат даты (если там дата+время — выделим дату)
-df['M'] = pd.to_datetime(df['M'], errors='coerce')
-
-# Создаем новый столбец "DayOfWeek" с названием дня недели
-df['DayOfWeek'] = df['M'].dt.day_name()  # названия на английском
-
-# Если нужен русский язык:
-# df['DayOfWeek'] = df['M'].dt.day_name(locale='ru_RU')
-
-df.to_excel("your_file_with_dayofweek.xlsx", index=False)
-
-df['DayOfWeek'] = df['M'].dt.strftime('%a')
-
-import pandas as pd
-
-df = pd.read_excel("your_file.xlsx")
-
-# Преобразуем значения M в дату/время
-df['M'] = pd.to_datetime(df['M'], errors='coerce')
-
-# Теперь создаем столбец с днем недели
-df['DayOfWeek'] = df['M'].dt.day_name()
-
-df.to_excel("your_file_with_dayofweek.xlsx", index=False)
-import pandas as pd
-
-df = pd.read_excel("your_file.xlsx")
-
-# Преобразуем дату из формата dd.mm.yyyy
+# Преобразуем M в datetime (дата + время если было)
 df['M'] = pd.to_datetime(df['M'], format='%d.%m.%Y', errors='coerce')
 
-# Сохраняем в формате mm.dd.yyyy (как текст)
-df['M'] = df['M'].dt.strftime('%m.%d.%Y')
+# Получаем номер дня недели: Monday=0 ... Sunday=6
+weekday = df['M'].dt.weekday
 
-df.to_excel("your_file_converted.xlsx", index=False)
+# Условие: Пн(0), Вт(1), Ср(2), Чт(3)
+mask = weekday.isin([0, 1, 2, 3])
+
+# Меняем время на 08:15:00
+df.loc[mask, 'M'] = df.loc[mask, 'M'].dt.normalize() + pd.Timedelta(hours=8, minutes=15)
+
+# Сохраняем обратно
+df.to_excel("your_file_updated.xlsx", index=False)
