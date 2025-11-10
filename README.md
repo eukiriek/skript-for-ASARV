@@ -1,32 +1,43 @@
 import pandas as pd
 
+# 1) Читаем файл
 df = pd.read_excel("your_file.xlsx")
 
-# Преобразуем M в datetime (если в ней дата или дата+время — это нормально)
-df['M'] = pd.to_datetime(df['M'], errors='coerce')
-
-# Нормализуем текст в столбце N
+# 2) Нормализуем текст в столбце N (дни недели заданы текстом)
 df['N_clean'] = df['N'].astype(str).str.strip().str.lower()
 
-# Значения для Пн–Чт
+# 3) Целевые дни недели (Пн–Чт)
 weekdays_mon_to_thu = [
     'понедельник', 'вторник', 'среда', 'четверг',
     'пн', 'вт', 'ср', 'чт'
 ]
 
-# Преобразуем L в числовой вид
-df['L'] = pd.to_numeric(df['L'], errors='coerce')
+mask_mon_thu = df['N_clean'].isin(weekdays_mon_to_thu)
 
-# Маска: день недели Пн–Чт И при этом L == 0
-mask = (df['N_clean'].isin(weekdays_mon_to_thu)) & (df['L'] == 0)
+# 4) Приводим M к datetime (может быть время или дата+время; ошибки -> NaT)
+m_dt = pd.to_datetime(df['M'], errors='coerce')
 
-# Меняем время только для этих строк
-df.loc[mask, 'M'] = df.loc[mask, 'M'].dt.normalize() + pd.Timedelta(hours=8, minutes=15)
+# 5) Маска "время в M < 08:00:00" (учитываем только распознанные времена)
+secs = (m_dt.dt.hour.fillna(0).astype(int) * 3600 +
+        m_dt.dt.minute.fillna(0).astype(int) * 60 +
+        m_dt.dt.second.fillna(0).astype(int))
+mask_time_lt_8 = m_dt.notna() & (secs < 8 * 3600)
 
-# Приводим M к строковому формату только времени
-df['M'] = df['M'].dt.strftime('%H:%M:%S')
+# 6) Маска L == 1 (тогда ничего не делаем)
+mask_L_eq_1 = (df['L'] == 1)
 
-# Убираем технический столбец
+# 7) Итоговая маска применения правила:
+#    применяем ТОЛЬКО если день Пн–Чт, L != 1, и время не меньше 08:00
+mask_apply = mask_mon_thu & (~mask_L_eq_1) & (~mask_time_lt_8)
+
+# 8) Обновляем M на 08:15:00 там, где mask_apply
+df.loc[mask_apply, 'M'] = '08:15:00'
+
+# 9) Приводим M строго к формату времени HH:MM:SS (без даты)
+m_dt2 = pd.to_datetime(df['M'], errors='coerce')
+df['M'] = m_dt2.dt.strftime('%H:%M:%S')
+df.loc[m_dt2.isna(), 'M'] = None  # если не распознано — оставим пусто
+
+# 10) Чистим тех. столбец и сохраняем
 df = df.drop(columns=['N_clean'])
-
 df.to_excel("your_file_updated.xlsx", index=False)
