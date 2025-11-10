@@ -1,0 +1,20 @@
+import pandas as pd
+
+df = pd.read_excel("your_file.xlsx")
+
+# Название столбца, который нужно преобразовать
+col = "Time"
+
+# 1) Приводим к строке и очищаем пробелы
+df[col] = df[col].astype(str).str.strip()
+
+# 2) Преобразуем к формату времени
+df[col] = pd.to_datetime(df[col], errors='coerce').dt.time
+
+# 3) Если нужно формат именно как строка "ЧЧ:ММ:СС":
+df[col] = df[col].astype(str)
+
+# Сохраняем
+df.to_excel("your_file_time_formatted.xlsx", index=False)
+
+
