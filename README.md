@@ -1,17 +1,32 @@
 import pandas as pd
 
-# Основная таблица
-df = pd.read_excel("main.xlsx")
+df = pd.read_excel("your_file.xlsx")
 
-# Таблица со списком значений
-df_ref = pd.read_excel("reference.xlsx")
+# Преобразуем M в datetime (если в ней дата или дата+время — это нормально)
+df['M'] = pd.to_datetime(df['M'], errors='coerce')
 
-# Предположим, что сравниваем значения из столбца M с колонкой Value во второй таблице
-# Приведём к строкам/числам, чтобы избежать случайных несовпадений
-df['M'] = df['M'].astype(str).str.strip()
-df_ref['Value'] = df_ref['Value'].astype(str).str.strip()
+# Нормализуем текст в столбце N
+df['N_clean'] = df['N'].astype(str).str.strip().str.lower()
 
-# Создаем новую колонку "Match" (как результат ВПР)
-df['Match'] = df['M'].isin(df_ref['Value']).astype(int)
+# Значения для Пн–Чт
+weekdays_mon_to_thu = [
+    'понедельник', 'вторник', 'среда', 'четверг',
+    'пн', 'вт', 'ср', 'чт'
+]
 
-df.to_excel("main_with_match.xlsx", index=False)
+# Преобразуем L в числовой вид
+df['L'] = pd.to_numeric(df['L'], errors='coerce')
+
+# Маска: день недели Пн–Чт И при этом L == 0
+mask = (df['N_clean'].isin(weekdays_mon_to_thu)) & (df['L'] == 0)
+
+# Меняем время только для этих строк
+df.loc[mask, 'M'] = df.loc[mask, 'M'].dt.normalize() + pd.Timedelta(hours=8, minutes=15)
+
+# Приводим M к строковому формату только времени
+df['M'] = df['M'].dt.strftime('%H:%M:%S')
+
+# Убираем технический столбец
+df = df.drop(columns=['N_clean'])
+
+df.to_excel("your_file_updated.xlsx", index=False)
