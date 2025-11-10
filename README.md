@@ -15,3 +15,14 @@ df.to_excel("your_file_with_dayofweek.xlsx", index=False)
 
 df['DayOfWeek'] = df['M'].dt.strftime('%a')
 
+import pandas as pd
+
+df = pd.read_excel("your_file.xlsx")
+
+# Преобразуем значения M в дату/время
+df['M'] = pd.to_datetime(df['M'], errors='coerce')
+
+# Теперь создаем столбец с днем недели
+df['DayOfWeek'] = df['M'].dt.day_name()
+
+df.to_excel("your_file_with_dayofweek.xlsx", index=False)
