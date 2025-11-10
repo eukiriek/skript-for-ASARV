@@ -1,5 +1,21 @@
 import pandas as pd
 
+df = pd.read_excel("your_file.xlsx")
+
+# Приводим значения в Z к строке и убираем пробелы
+df['Z'] = df['Z'].astype(str).str.strip()
+
+# Вариант 1: если в таблице время как "00:00:00"
+df = df[df['Z'] != '00:00:00']
+
+# Вариант 2: если в таблице время как "00.00.00" (поменяйте строку ниже)
+# df = df[df['Z'] != '00.00.00']
+
+df.to_excel("your_file_updated.xlsx", index=False)
+
+
+import pandas as pd
+
 # 1) Читаем файл
 df = pd.read_excel("your_file.xlsx")
 
