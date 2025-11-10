@@ -1,29 +1,17 @@
 import pandas as pd
 
-df = pd.read_excel("your_file.xlsx")
+# Основная таблица
+df = pd.read_excel("main.xlsx")
 
-# Преобразуем M в datetime (если в ней дата или дата+время — это нормально)
-df['M'] = pd.to_datetime(df['M'], errors='coerce')
+# Таблица со списком значений
+df_ref = pd.read_excel("reference.xlsx")
 
-# Нормализуем текст в столбце N
-df['N_clean'] = df['N'].astype(str).str.strip().str.lower()
+# Предположим, что сравниваем значения из столбца M с колонкой Value во второй таблице
+# Приведём к строкам/числам, чтобы избежать случайных несовпадений
+df['M'] = df['M'].astype(str).str.strip()
+df_ref['Value'] = df_ref['Value'].astype(str).str.strip()
 
-# Значения для Пн–Чт
-weekdays_mon_to_thu = [
-    'понедельник', 'вторник', 'среда', 'четверг',
-    'пн', 'вт', 'ср', 'чт'
-]
+# Создаем новую колонку "Match" (как результат ВПР)
+df['Match'] = df['M'].isin(df_ref['Value']).astype(int)
 
-# Маска — где день недели входит в Пн–Чт
-mask = df['N_clean'].isin(weekdays_mon_to_thu)
-
-# Меняем время на 08:15:00 (сохранив дату для корректной обработки)
-df.loc[mask, 'M'] = df.loc[mask, 'M'].dt.normalize() + pd.Timedelta(hours=8, minutes=15)
-
-# Теперь извлекаем только время в формате HH:MM:SS
-df['M'] = df['M'].dt.strftime('%H:%M:%S')
-
-# Убираем технический столбец
-df = df.drop(columns=['N_clean'])
-
-df.to_excel("your_file_updated.xlsx", index=False)
+df.to_excel("main_with_match.xlsx", index=False)
