@@ -18,3 +18,11 @@ df[col] = df[col].astype(str)
 df.to_excel("your_file_time_formatted.xlsx", index=False)
 
 
+import pandas as pd
+
+df = pd.read_excel("your_file.xlsx")
+
+# Приводим значения в M к формату времени ЧЧ:ММ:СС
+df['M'] = pd.to_datetime(df['M'], errors='coerce').dt.strftime('%H:%M:%S')
+
+df.to_excel("your_file_time_formatted.xlsx", index=False)
