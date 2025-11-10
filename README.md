@@ -41,3 +41,25 @@ df.loc[m_dt2.isna(), 'M'] = None  # если не распознано — ос�
 # 10) Чистим тех. столбец и сохраняем
 df = df.drop(columns=['N_clean'])
 df.to_excel("your_file_updated.xlsx", index=False)
+
+
+
+import pandas as pd
+
+df = pd.read_excel("your_file.xlsx")
+
+# Приводим M к datetime (если там только время — дата подставится автоматически)
+m_dt = pd.to_datetime(df['M'], errors='coerce')
+
+# Считаем время в секундах с начала суток
+seconds = (
+    m_dt.dt.hour.fillna(0).astype(int) * 3600 +
+    m_dt.dt.minute.fillna(0).astype(int) * 60 +
+    m_dt.dt.second.fillna(0).astype(int)
+)
+
+# Создаем новый столбец-признак
+# 1 — если время < 08:00, иначе 0
+df['Time_lt_8'] = (seconds < 8 * 3600).astype(int)
+
+df.to_excel("your_file_updated.xlsx", index=False)
