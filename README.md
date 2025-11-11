@@ -24,3 +24,18 @@ df_merged = df_merged.drop(columns=['M'])
 
 # Сохраняем результат
 df_merged.to_excel("result.xlsx", index=False)
+import pandas as pd
+
+# Загружаем таблицы
+df_main = pd.read_excel("main.xlsx")       # основная таблица
+df_ref  = pd.read_excel("reference.xlsx")  # таблица-справочник (M и V находятся здесь)
+
+# Приводим значения к строке, очищаем пробелы, чтобы совпадения работали гарантированно
+df_main['N'] = df_main['N'].astype(str).str.strip()
+df_ref['M']  = df_ref['M'].astype(str).str.strip()
+
+# Добавляем новый столбец в df_main на основе соответствия N → M → V
+df_main['V_match'] = df_main['N'].map(df_ref.set_index('M')['V'])
+
+# Сохраняем обновлённую основную таблицу
+df_main.to_excel("main_updated.xlsx", index=False)
