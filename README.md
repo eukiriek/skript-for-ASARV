@@ -1,23 +1,26 @@
 import pandas as pd
 
-# читаем файл
-df = pd.read_excel("your_file.xlsx")
+# Загружаем таблицы
+df_main = pd.read_excel("main.xlsx")       # таблица, где ищем совпадения
+df_ref = pd.read_excel("reference.xlsx")   # таблица-справочник с M и V
 
-# Нормализуем столбец N к времени:
-# 1) приводим к строке, убираем пробелы
-# 2) меняем точки на двоеточия (на случай "00.00.00")
-# 3) парсим как время HH:MM:SS; непарсящиеся значения -> NaT
-n_time = pd.to_datetime(
-    df["N"].astype(str).str.strip().str.replace('.', ':', regex=False),
-    format="%H:%M:%S",
-    errors="coerce"
+# Приводим сравниваемые колонки к единому формату (важно!)
+df_main['N'] = df_main['N'].astype(str).str.strip()
+df_ref['M'] = df_ref['M'].astype(str).str.strip()
+
+# Выполняем VLOOKUP (merge по ключу N=M)
+df_merged = df_main.merge(
+    df_ref[['M', 'V']],        # берем только колонки-ключ и значение
+    how='left',                # left — чтобы не потерять строки из основной таблицы
+    left_on='N',
+    right_on='M'
 )
 
-# Маска строк, где время ровно 00:00:00
-mask_midnight = (n_time.dt.hour == 0) & (n_time.dt.minute == 0) & (n_time.dt.second == 0)
+# Записываем результат в новый столбец, например "V_match"
+df_merged.rename(columns={'V': 'V_match'}, inplace=True)
 
-# Удаляем такие строки
-df = df.loc[~mask_midnight].copy()
+# Убираем дублирующий столбец M после merge
+df_merged = df_merged.drop(columns=['M'])
 
 # Сохраняем результат
-df.to_excel("your_file_updated.xlsx", index=False)
+df_merged.to_excel("result.xlsx", index=False)
