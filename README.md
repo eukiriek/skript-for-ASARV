@@ -1,88 +1,89 @@
 import pandas as pd
+from pathlib import Path
 
-# ==== Настройки (при необходимости поменяйте имена файлов/столбцов) ====
-MAIN_FILE = "main.xlsx"
-REF_FILE  = "reference.xlsx"
+# ====== Файлы (при необходимости поменяйте имена) ======
+MAIN_XLSX = "main.xlsx"         # содержит: Сотрудник, Календарь.дата
+REF_XLSX  = "reference.xlsx"    # содержит: Таб номер, Дата приёма, Дата увольнения, Сп1, Сп2
+OUT_XLSX  = "result.xlsx"
 
-COL_MAIN_DATE = "Дата"        # столбец с датой в основном файле
-COL_MAIN_TN   = "ТабНомер"    # столбец с табельным номером в основном файле
+# ====== Загрузка ======
+df_main = pd.read_excel(MAIN_XLSX)
+df_ref  = pd.read_excel(REF_XLSX)
 
-COL_REF_LOWER = "Нижняя_граница"  # нижняя граница диапазона в справочнике
-COL_REF_UPPER = "Верхняя_граница" # верхняя граница диапазона в справочнике
-COL_REF_N     = "N"               # значение N из справочника
-COL_REF_M     = "M"               # значение M из справочника
+# ====== Нормализация названий столбцов (убираем \r/\n и пробелы по краям) ======
+df_main.columns = df_main.columns.astype(str).str.replace(r'[\r\n]+', '', regex=True).str.strip()
+df_ref.columns  = df_ref.columns.astype(str).str.replace(r'[\r\n]+', '', regex=True).str.strip()
 
-OUT_FILE_MATCHED = "result_match.xlsx"  # куда сохранить результат
-# ======================================================================
+# Проверим, что нужные колонки есть
+req_main = {"Сотрудник", "Календарь.дата"}
+req_ref  = {"Таб номер", "Дата приёма", "Дата увольнения", "Сп1", "Сп2"}
+missing_main = req_main - set(df_main.columns)
+missing_ref  = req_ref  - set(df_ref.columns)
+if missing_main or missing_ref:
+    raise ValueError(f"Нет нужных колонок. В main отсутствуют: {missing_main}; в reference отсутствуют: {missing_ref}")
 
-# 1) Загрузка
-df_main = pd.read_excel(MAIN_FILE)
-df_ref  = pd.read_excel(REF_FILE)
+# ====== Приведение типов ======
+# Ключевые поля для сопоставления
+df_main["Сотрудник"] = df_main["Сотрудник"].astype(str).str.strip()
+df_ref["Таб номер"]  = df_ref["Таб номер"].astype(str).str.strip()
 
-# 2) Приведение дат
-df_main[COL_MAIN_DATE] = pd.to_datetime(df_main[COL_MAIN_DATE], errors="coerce", dayfirst=True)
-df_ref[COL_REF_LOWER]  = pd.to_datetime(df_ref[COL_REF_LOWER],  errors="coerce", dayfirst=True)
-df_ref[COL_REF_UPPER]  = pd.to_datetime(df_ref[COL_REF_UPPER],  errors="coerce", dayfirst=True)
+# Даты: в исходных файлах может быть формат dd.mm.yyyy — укажем dayfirst=True
+df_main["Календарь.дата"] = pd.to_datetime(df_main["Календарь.дата"], errors="coerce", dayfirst=True)
+df_ref["Дата приёма"]     = pd.to_datetime(df_ref["Дата приёма"], errors="coerce", dayfirst=True)
+df_ref["Дата увольнения"] = pd.to_datetime(df_ref["Дата увольнения"], errors="coerce", dayfirst=True)
 
-# Защита от некорректных дат
-df_main = df_main.dropna(subset=[COL_MAIN_DATE]).copy()
-df_ref  = df_ref.dropna(subset=[COL_REF_LOWER, COL_REF_UPPER]).copy()
+# Если "Дата увольнения" пустая (NaT) — считаем, что сотрудник всё ещё работает, ставим далёкую дату
+open_end_date = pd.Timestamp("2099-12-31")
+df_ref["Дата увольнения"] = df_ref["Дата увольнения"].fillna(open_end_date)
 
-# 3) Сортируем для asof-джойна по нижней границе
-df_main_sorted = df_main.sort_values(COL_MAIN_DATE).reset_index(drop=True)
-df_ref_sorted  = df_ref.sort_values(COL_REF_LOWER).reset_index(drop=True)
+# На всякий случай уберём строки c пустым табномером в справочнике
+df_ref = df_ref[df_ref["Таб номер"].notna() & (df_ref["Таб номер"] != "")].copy()
 
-# 4) Джойн по принципу:
-#    найти последнюю нижнюю границу, не превышающую дату из main,
-#    затем отфильтровать те, где дата <= верхней границы (попадание в интервал).
-merged = pd.merge_asof(
-    df_main_sorted,
-    df_ref_sorted[[COL_REF_LOWER, COL_REF_UPPER, COL_REF_N, COL_REF_M]],
-    left_on=COL_MAIN_DATE,
-    right_on=COL_REF_LOWER,
-    direction="backward",
-    allow_exact_matches=True
+# ====== Подготовка для однозначного сопоставления ======
+# Сохраняем индекс основной таблицы, чтобы после merge восстановить единственность строк
+df_main = df_main.reset_index().rename(columns={"index": "row_id"})
+
+# Берём только нужные колонки из справочника
+ref_keep = ["Таб номер", "Дата приёма", "Дата увольнения", "Сп1", "Сп2"]
+df_ref = df_ref[ref_keep].copy()
+
+# ====== Соединяем по ключу "Сотрудник == Таб номер" ======
+merged = df_main.merge(
+    df_ref,
+    how="left",
+    left_on="Сотрудник",
+    right_on="Таб номер",
+    suffixes=("", "_ref")
 )
 
-# 5) Фильтр по условию попадания в интервал [LOWER; UPPER] включительно
-in_range_mask = merged[COL_MAIN_DATE].le(merged[COL_REF_UPPER])
-
-# Если есть пересечения интервалов с одинаковыми LOWER, asof возьмёт ближайший LOWER.
-# При необходимости можно дополнительно проверить, что LOWER <= date (asof это уже гарантирует).
-matched = merged[in_range_mask].copy()
-
-# 6) Собираем итоговые поля:
-#    ТабНомер (из main), N и M (из reference). 
-#    При желании добавьте ещё поля из main/reference.
-result = matched[[COL_MAIN_TN, COL_MAIN_DATE, COL_REF_N, COL_REF_M]].rename(
-    columns={
-        COL_MAIN_TN: "ТабНомер",
-        COL_MAIN_DATE: "Дата",
-        COL_REF_N: "N_ref",
-        COL_REF_M: "M_ref",
-    }
+# ====== Фильтруем по попаданию даты в диапазон ======
+in_range = (
+    (merged["Календарь.дата"] >= merged["Дата приёма"]) &
+    (merged["Календарь.дата"] <= merged["Дата увольнения"])
 )
 
-# 7) Сохраняем результат
-result.to_excel(OUT_FILE_MATCHED, index=False)
+# Оставим только корректные попадания и выберем по одному на каждую строку main
+candidates = merged[in_range].copy()
 
-print(f"Найдено совпадений по диапазонам: {len(result)}")
-print(f"Результат сохранён в: {OUT_FILE_MATCHED}")
+# Если для одной строки main найдено несколько периодов (на случай пересечений),
+# можно выбрать самый "близкий" по дате приёма (например, максимальный Дата приёма)
+candidates = candidates.sort_values(["row_id", "Дата приёма"])
+best_match = candidates.drop_duplicates(subset="row_id", keep="last")
 
+# ====== Собираем финальный датафрейм ======
+result = df_main.set_index("row_id").copy()
 
+# По умолчанию создадим пустые столбцы "Сп1" и "Сп2"
+result["Сп1"] = pd.NA
+result["Сп2"] = pd.NA
 
+# Заполним там, где нашлись подходящие периоды
+result.loc[best_match["row_id"].values, ["Сп1", "Сп2"]] = best_match.set_index("row_id")[["Сп1", "Сп2"]].values
 
+# Вернём обычный индекс
+result = result.reset_index(drop=True)
 
+# ====== Сохраняем ======
+result.to_excel(OUT_XLSX, index=False)
 
-import pandas as pd
-
-# Загружаем файл
-df = pd.read_excel("your_file.xlsx")
-
-# Очищаем названия столбцов от переносов строк и лишних пробелов
-df.columns = df.columns.str.replace(r'[\r\n]+', ' ', regex=True).str.strip()
-
-# Сохраняем обратно
-df.to_excel("your_file_cleaned.xlsx", index=False)
-
-print("Переносы строк удалены из названий столбцов. Файл сохранён как your_file_cleaned.xlsx")
+print(f"Готово. Итог сохранён в: {Path(OUT_XLSX).resolve()}")
