@@ -68,3 +68,21 @@ result.to_excel(OUT_FILE_MATCHED, index=False)
 
 print(f"Найдено совпадений по диапазонам: {len(result)}")
 print(f"Результат сохранён в: {OUT_FILE_MATCHED}")
+
+
+
+
+
+
+import pandas as pd
+
+# Загружаем файл
+df = pd.read_excel("your_file.xlsx")
+
+# Очищаем названия столбцов от переносов строк и лишних пробелов
+df.columns = df.columns.str.replace(r'[\r\n]+', ' ', regex=True).str.strip()
+
+# Сохраняем обратно
+df.to_excel("your_file_cleaned.xlsx", index=False)
+
+print("Переносы строк удалены из названий столбцов. Файл сохранён как your_file_cleaned.xlsx")
