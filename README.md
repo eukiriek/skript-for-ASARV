@@ -25,3 +25,6 @@ def td_to_hms(td):
     seconds = total_seconds % 60
 
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+df["новое_поле"] = df["timedelta_поле"].apply(td_to_hms)
