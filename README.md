@@ -1,24 +1,32 @@
+
 import pandas as pd
-import numpy as np
 
-# Загружаем файл
-df = pd.read_excel("your_file.xlsx")
+# --- Загружаем основной файл ---
+df = pd.read_excel("main.xlsx")
 
-# --- Преобразование M и K в формат времени ---
-df["M"] = pd.to_timedelta(df["M"].astype(str), errors="coerce")
-df["K"] = pd.to_timedelta(df["K"].astype(str), errors="coerce")
+# --- Загружаем файл с праздниками ---
+df_holidays = pd.read_excel("prazdnik.xlsx")
 
-# --- Создаём новое поле N ---
-# Вычисляем разницу
-df["N"] = df["M"] - df["K"]
+# Приводим даты в datetime
+df["кд"] = pd.to_datetime(df["кд"], errors="coerce")
+df_holidays["праздник"] = pd.to_datetime(df_holidays["праздник"], errors="coerce")
 
-# Если разница <= 0 или NaT → ставим 0
-df.loc[(df["N"].dt.total_seconds() <= 0) | (df["N"].isna()), "N"] = pd.Timedelta(0)
+# Приводим поле "норма" к timedelta (время)
+df["норма"] = pd.to_timedelta(df["норма"].astype(str), errors="coerce")
 
-# --- Преобразуем N обратно в формат чч:мм:сс ---
-df["N"] = df["N"].dt.strftime("%H:%M:%S")
+# Список всех праздничных дат
+holidays = set(df_holidays["праздник"].dropna())
 
-# Сохраняем результат
-df.to_excel("updated.xlsx", index=False)
+# --- Логика изменения нормы ---
+mask = df["кд"].isin(holidays)
 
-print("Готово! Поле N успешно создано.")
+# если дата = праздник → норма = норма - 1 час
+df.loc[mask, "норма"] = df.loc[mask, "норма"] - pd.Timedelta(hours=1)
+
+# Возвращаем формат ЧЧ:ММ:СС
+df["норма"] = df["норма"].dt.strftime("%H:%M:%S")
+
+# --- Сохраняем результат ---
+df.to_excel("main_updated.xlsx", index=False)
+
+print("Готово! Поле 'норма' скорректировано для праздничных дат.")
