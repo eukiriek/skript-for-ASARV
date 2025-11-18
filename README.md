@@ -1,20 +1,18 @@
-import pandas as pd
+# --удаление exceptions_sp.
+df_ref = pd.read_excel("spravochnik.xlsx", sheet_name='exceptions_sp')  # справочник
+df['Полное наименование'] = df['Полное наименование'].astype(str).str.strip()
+df_ref['exception'] = df_ref['exception'].astype(str).str.strip()
 
-df = pd.read_excel("your_file.xlsx")
+match_values = set(df_ref['exception'].unique())
 
-# --- Приводим поля к формату timedelta ---
-df["время"] = pd.to_timedelta(df["время"], errors="coerce")
-df["N"] = pd.to_numeric(df["N"], errors="coerce")
-df["M"] = pd.to_numeric(df["M"], errors="coerce")
+# --- новые строки: сначала выбираем удаляемые строки ---
+df_exceptions_removed = df[df['Полное наименование'].isin(match_values)].copy()
 
-# --- Условие: если N=1 и M=0 ---
-mask = (df["N"] == 1) & (df["M"] == 0)
+# --- затем удаляем из основного df ---
+df = df[~df['Полное наименование'].isin(match_values)].copy()
 
-df.loc[mask, "время"] = df.loc[mask, "время"] - pd.Timedelta(hours=1)
+# --- сохраняем исключённые строки в новый файл ---
+df_exceptions_removed.to_excel("exception.xlsx", index=False)
 
-# --- Возвращаем формат чч:мм:сс ---
-df["время"] = df["время"].dt.strftime("%H:%M:%S")
-
-df.to_excel("updated.xlsx", index=False)
-
-print("ГОТОВО.")
+print('-- удаление exceptions_sp.')
+print(f'Сохранено удалённых строк: {len(df_exceptions_removed)}')
