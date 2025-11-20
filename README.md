@@ -1,24 +1,14 @@
 import pandas as pd
 
-# 1. Загружаем файл, откуда берем значения a и b
-# пример: файл data.xlsx с колонками a и b
-source = pd.read_excel("data.xlsx")
+# Пример: ваши колонки называются "кастомная_дата" и "дата_приема"
+# кастомная дата — строка "dd.mm.yyyy"
+# дата_приема — datetime
 
-# 2. Создаем пустую таблицу с нужными полями
-df = pd.DataFrame(columns=["a", "b", "c"])
+# Приводим кастомную дату к datetime
+df["кастомная_дата"] = pd.to_datetime(df["кастомная_дата"], format="%d.%m.%Y", errors="coerce")
 
-# 3. Заполняем поля a и b значениями из файла
-df["a"] = source["a"]
-df["b"] = source["b"]
+# Считаем разницу в днях
+df["разница_дней"] = (df["кастомная_дата"] - df["дата_приема"]).dt.days
 
-# 4. Проверяем уникальность поле a
-if df["a"].is_unique:
-    print("Все значения 'a' уникальные")
-else:
-    dup = df[df["a"].duplicated(keep=False)]
-    raise ValueError(f"Найдены неуникальные значения в 'a':\n{dup}")
-
-# 5. Выгрузка в Excel
-df.to_excel("new_table.xlsx", index=False)
-
-print("Готово! Файл new_table.xlsx создан.")
+# Ставим флаг новичок: 1 если > 365 дней
+df["флаг_новичок"] = (df["разница_дней"] > 365).astype(int)
