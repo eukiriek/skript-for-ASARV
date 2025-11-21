@@ -1,14 +1,15 @@
 import pandas as pd
 
-# 1. Преобразуем "дата_приема" из object в datetime
-df["дата_приема"] = pd.to_datetime(
-    df["дата_приема"],
-    dayfirst=True,      # формат dd.mm.yyyy (31.12.2023 00:00:00)
-    errors="coerce"     # некорректные значения станут NaT
-)
+# Загружаем исходный файл
+df = pd.read_excel("input.xlsx")
 
-# 2. Берём сегодняшнюю дату (без времени)
-today = pd.Timestamp.today().normalize()
+# 1. Приводим время к timedelta
+df["время"] = pd.to_timedelta(df["время"])
 
-# 3. Считаем разницу в днях: сегодня - дата_приема
-df["разница_дней"] = (today - df["дата_приема"]).dt.days
+# 2. Группировка + сумма
+agg = df.groupby("сотрудник", as_index=False)["время"].sum()
+
+# 3. Сохраняем результат в новый лист Excel
+with pd.ExcelWriter("output.xlsx") as writer:
+    df.to_excel(writer, sheet_name="Исходные_данные", index=False)
+    agg.to_excel(writer, sheet_name="Агрегировано", index=False)
