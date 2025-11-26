@@ -19,3 +19,15 @@ df['ФИО_из_доп'] = df.apply(
 
 # если нужно — сохранить обратно в основную таблицу
 df_main = df.copy()
+
+
+
+
+df_main['ФИО'] = df_main['ФИО'].str.strip().str.lower()
+df_add['ФИО']  = df_add['ФИО'].str.strip().str.lower()
+
+df_main = df_main.merge(
+    df_add[['ФИО', 'Поле1', 'Поле2']], 
+    on='ФИО',
+    how='left'
+)
