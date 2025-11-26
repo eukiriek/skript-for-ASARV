@@ -1,15 +1,21 @@
 import pandas as pd
 
-# Загружаем исходный файл
-df = pd.read_excel("input.xlsx")
+# предположим, что у обеих таблиц ключ называется "id"
+# и текстовые поля: "ФИО" в основной и "Сотрудник" в дополнительной
 
-# 1. Приводим время к timedelta
-df["время"] = pd.to_timedelta(df["время"])
+# соединяем таблицы по ключу
+df = df_main.merge(
+    df_add[['id', 'Сотрудник']], 
+    on='id',
+    how='left',
+    suffixes=('', '_add')
+)
 
-# 2. Группировка + сумма
-agg = df.groupby("сотрудник", as_index=False)["время"].sum()
+# создаём новое поле там, где значения ФИО и Сотрудник не совпадают
+df['ФИО_из_доп'] = df.apply(
+    lambda row: row['Сотрудник'] if row['ФИО'] != row['Сотрудник'] else None,
+    axis=1
+)
 
-# 3. Сохраняем результат в новый лист Excel
-with pd.ExcelWriter("output.xlsx") as writer:
-    df.to_excel(writer, sheet_name="Исходные_данные", index=False)
-    agg.to_excel(writer, sheet_name="Агрегировано", index=False)
+# если нужно — сохранить обратно в основную таблицу
+df_main = df.copy()
