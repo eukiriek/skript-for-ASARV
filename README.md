@@ -1,22 +1,26 @@
-import pandas as pd
+# переводим переработки в timedelta
+df["Новые переработки"] = pd.to_timedelta(df["Новые переработки"])
 
-# Загружаем данные
-df_main = pd.read_excel("main.xlsx")      # основная таблица
-df_ref  = pd.read_excel("ref.xlsx")       # доп. таблица
+# считаем агрегацию по имени
+agg = df.groupby("Имя", as_index=False)["Новые переработки"].sum()
 
-# Убедимся, что ключи — целые числа
-df_main["Сотрудник"] = pd.to_numeric(df_main["Сотрудник"], errors="coerce").astype("Int64")
-df_ref["id"]         = pd.to_numeric(df_ref["id"], errors="coerce").astype("Int64")
+# функция перевода timedelta -> "чч:мм:сс"
+def td_to_hms(td):
+    if pd.isna(td):
+        return None
+    total_seconds = int(td.total_seconds())
+    hours   = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
-# Мерж по ключам: Сотрудник == id
-df_merged = df_main.merge(
-    df_ref[["id", "сп"]],
-    left_on="Сотрудник",
-    right_on="id",
-    how="left"
-)
+# переводим в формат "25:00:00" и т.п.
+agg["Новые переработки"] = agg["Новые переработки"].apply(td_to_hms)
 
-# можно удалить вспомогательное поле id
-df_merged = df_merged.drop(columns=["id"])
+# при желании можно конвертировать и в основном df
+df["Новые переработки"] = df["Новые переработки"].apply(td_to_hms)
 
-# Итог: df_merged содержит поле "сп" из доп.таблицы
+# выгрузка
+with pd.ExcelWriter("asarv_new.xlsx") as writer:
+    df.to_excel(writer, sheet_name="asarv_new", index=False)
+    agg.to_excel(writer, sheet_name="агрегация", index=False)
