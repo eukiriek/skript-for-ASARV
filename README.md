@@ -1,25 +1,42 @@
-# признак типа подразделения: ЕСЦ / КЦ / ГО
+# Приводим необходимые поля к timedelta
+for col in ["Отработанное время", "Общая продолжительность",
+            "Время отсутствия", "Время обеда"]:
+    df[col] = pd.to_timedelta(df[col], errors="coerce")
 
-# очистка строк
-df["Полное наименование"] = clean_str(df["Полное наименование"])
-df["Подразделение 2"] = clean_str(df["Подразделение 2"])
+# Новое поле
+df["Новое отработанное время"] = pd.NaT
 
-# маски для условий
-mask_esc = df["Полное наименование"].str.contains("сервисный центр",
-                                                  case=False, na=False)
-mask_kc = df["Подразделение 2"].str.contains("контакт-центр",
-                                             case=False, na=False)
+# ---- УСЛОВИЕ 1 УДАЛЕНО ----
+# НЕТ блока "если >= 24 часов"
 
-# новое поле, по умолчанию ГО
-df["Тип подразделения"] = "ГО"
+# Общая маска для всех остальных строк
+mask_other = pd.Series([True] * len(df))
 
-# ЕСЦ
-df.loc[mask_esc, "Тип подразделения"] = "ЕСЦ"
+# 2. Если время выхода < времени входа → сотрудник вышел на следующий день
+mask_next_day = mask_other & (df["Время выхода"] < df["Время входа"])
 
-# КЦ (если нужно, можно считать приоритетнее ЕСЦ)
-df.loc[mask_kc, "Тип подразделения"] = "КЦ"
+df.loc[mask_next_day, "Новое отработанное время"] = (
+    pd.Timedelta(hours=24)
+    - (df.loc[mask_next_day, "Время входа"] - df.loc[mask_next_day, "Время входа"].dt.normalize())
+    + (df.loc[mask_next_day, "Время выхода"] - df.loc[mask_next_day, "Время выхода"].dt.normalize())
+)
 
-# если старые поля больше не нужны, можно удалить
-df.drop(columns=["ЕСЦ", "КЦ"], errors="ignore", inplace=True)
+# 3. Обычный расчёт
+mask_normal = mask_other & ~mask_next_day
+raw_work = df["Время выхода"] - df["Время входа"]
+df.loc[mask_normal, "Новое отработанное время"] = raw_work[mask_normal]
 
-print("-- добавлено поле 'Тип подразделения' (ЕСЦ / КЦ / ГО).")
+# 4. Разделяем <5 часов и ≥5 часов
+mask_lt_5 = mask_normal & (raw_work < pd.Timedelta(hours=5))
+mask_ge_5 = mask_normal & (raw_work >= pd.Timedelta(hours=5))
+
+# 5. Если < 5 часов → вычитаем только "Время отсутствия"
+df.loc[mask_lt_5, "Новое отработанное время"] = (
+    raw_work[mask_lt_5] - df.loc[mask_lt_5, "Время отсутствия"]
+)
+
+# 6. Если ≥ 5 часов → вычитаем макс(обед, отсутствие)
+max_break = df[["Время обеда", "Время отсутствия"]].max(axis=1)
+df.loc[mask_ge_5, "Новое отработанное время"] = (
+    raw_work[mask_ge_5] - max_break[mask_ge_5]
+)
