@@ -42,4 +42,4 @@ df_main = df_main.merge(
 
 # ----- 5. МОЖНО УБРАТЬ ТЕХНИЧЕСКИЕ ПОЛЯ -----
 
-df_main = df_ma
+df_main = df_main.drop(columns=["Табномер1_norm", "День1_norm"])
