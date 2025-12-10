@@ -1,14 +1,26 @@
-# Приводим оба поля к timedelta
-df["Время отсутствия"] = pd.to_timedelta(df["Время отсутствия"], errors="coerce")
-df["Новое время отсутствия"] = pd.to_timedelta(df["Новое время отсутствия"], errors="coerce")
+import pandas as pd
 
-# Вычисляем разницу
-df["Самое новое время отсутствия"] = df["Время отсутствия"] - df["Новое время отсутствия"]
+# основная таблица
+df_main = pd.read_excel("main.xlsx")
 
-# Заменяем отрицательные значения на 00:00:00
-df.loc[df["Самое новое время отсутствия"] < pd.Timedelta(0), "Самое новое время отсутствия"] = pd.Timedelta(0)
+# добавочная таблица
+df_add = pd.read_excel("add.xlsx")
 
-# Преобразуем в формат чч:мм:сс
-df["Самое новое время отсутствия"] = df["Самое новое время отсутствия"].dt.components.apply(
-    lambda row: f"{row.hours:02d}:{row.minutes:02d}:{row.seconds:02d}", axis=1
+# на всякий случай приводим ключи к одному типу
+df_main["Табномер"] = df_main["Табномер"].astype(str).str.strip()
+df_add["Табномер"]  = df_add["Табномер"].astype(str).str.strip()
+
+df_main["День"] = pd.to_datetime(df_main["День"], dayfirst=True, errors="coerce")
+df_add["День"]  = pd.to_datetime(df_add["День"],  dayfirst=True, errors="coerce")
+
+# подтягиваем поле "Новые переработки" из добавочной таблицы по двум ключам
+df_main = df_main.merge(
+    df_add[["Табномер", "День", "Новые переработки"]],
+    on=["Табномер", "День"],
+    how="left",
+    suffixes=("", "_из_доп")
 )
+
+# если в основной уже было поле "Новые переработки" и надо его обновить:
+# df_main["Новые переработки"] = df_main["Новые переработки_из_доп"].fillna(df_main["Новые переработки"])
+# df_main.drop(columns=["Новые переработки_из_доп"], inplace=True)
