@@ -1,5 +1,8 @@
 import os
+import zipfile
+from openpyxl.utils.exceptions import InvalidFileException
 import pandas as pd
+
 
 def apply_exceptions(
         df,
@@ -9,41 +12,54 @@ def apply_exceptions(
         exceptions_file="exceptions_new.xlsx"
     ):
     """
-    Удаление строк по справочнику исключений.
-    Удалённые строки накапливаются в файле exceptions_new.xlsx
-    на листе с названием sheet_name.
+    Удаляет строки из df по справочнику исключений (sprav_file, лист sheet_name).
+    Удалённые строки накапливаются в exceptions_file на листе sheet_name.
     """
-    # читаем справочник
+
+    # --- читаем справочник ---
     df_ref = pd.read_excel(sprav_file, sheet_name=sheet_name)
 
-    # чистим строки
+    # --- чистим строки ---
     df[target_col] = clean_str(df[target_col])
     df_ref["exception"] = clean_str(df_ref["exception"])
 
-    # ищем совпадения
-    match_values = set(df_ref["exception"].unique())
+    # --- находим совпадения ---
+    match_values = set(df_ref["exception"].dropna().unique())
     mask = df[target_col].isin(match_values)
 
-    # строки-исключения
+    # строки-исключения, которые надо вынести в отдельный файл
     df_exceptions_removed = df.loc[mask].copy()
 
-    # если есть что сохранять — пишем/дописываем в exceptions_new.xlsx
+    # --- сохраняем исключения в exceptions_new.xlsx ---
     if not df_exceptions_removed.empty:
         if os.path.exists(exceptions_file):
-            # файл уже есть → дописываем лист, можно заменить существующий
-            with pd.ExcelWriter(
-                exceptions_file,
-                mode="a",
-                engine="openpyxl",
-                if_sheet_exists="replace"
-            ) as writer:
-                df_exceptions_removed.to_excel(
-                    writer,
-                    sheet_name=sheet_name,
-                    index=False
-                )
+            # файл уже есть: пробуем дописать лист
+            try:
+                with pd.ExcelWriter(
+                    exceptions_file,
+                    mode="a",
+                    engine="openpyxl",
+                    if_sheet_exists="replace"
+                ) as writer:
+                    df_exceptions_removed.to_excel(
+                        writer,
+                        sheet_name=sheet_name,
+                        index=False
+                    )
+            except (zipfile.BadZipFile, InvalidFileException):
+                # если файл битый / "не zip" — создаём заново
+                with pd.ExcelWriter(
+                    exceptions_file,
+                    mode="w",
+                    engine="openpyxl"
+                ) as writer:
+                    df_exceptions_removed.to_excel(
+                        writer,
+                        sheet_name=sheet_name,
+                        index=False
+                    )
         else:
-            # файла ещё нет → создаём новый, без if_sheet_exists
+            # файла ещё нет — создаём
             with pd.ExcelWriter(
                 exceptions_file,
                 mode="w",
@@ -55,5 +71,5 @@ def apply_exceptions(
                     index=False
                 )
 
-    # возвращаем df без исключений
+    # --- возвращаем df без исключений ---
     return df.loc[~mask].copy()
