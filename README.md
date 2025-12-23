@@ -1,51 +1,43 @@
-import os
 import pandas as pd
+import numpy as np
 
-def apply_exceptions(
-        df,
-        sheet_name,
-        target_col,
-        sprav_file="spravochnik.xlsx",
-        exceptions_file="exceptions_new.xlsx"
-    ):
-    """
-    Удаляет строки из df по справочнику исключений (sprav_file, лист sheet_name).
-    Все удалённые строки накапливаются в одном листе "exceptions" файла exceptions_file.
-    """
+# --- читаем справочники ---
+df_otpusk = pd.read_excel("otpusk.xlsx")          # Табельный номер | Всего
+df_sprav = pd.read_excel("spravoshnik.xlsx")      # Табельный номер | ДопОтпуск | Северные
 
-    # --- читаем справочник ---
-    df_ref = pd.read_excel(sprav_file, sheet_name=sheet_name)
+# --- приводим ключи ---
+df["Таб Номер"] = df["Таб Номер"].astype(str)
+df_otpusk["Табельный номер"] = df_otpusk["Табельный номер"].astype(str)
+df_sprav["Табельный номер"] = df_sprav["Табельный номер"].astype(str)
 
-    # --- чистим строки ---
-    df[target_col] = clean_str(df[target_col])
-    df_ref["exception"] = clean_str(df_ref["exception"])
+# --- маппинги ---
+otpusk_map = df_otpusk.set_index("Табельный номер")["Всего"]
 
-    # --- находим совпадения ---
-    match_values = set(df_ref["exception"].dropna().unique())
-    mask = df[target_col].isin(match_values)
+sprav_map = (
+    df_sprav
+    .set_index("Табельный номер")[["ДопОтпуск", "Северные"]]
+    .sum(axis=1)
+)
 
-    # строки-исключения, которые надо вынести в отдельный файл
-    df_exceptions_removed = df.loc[mask].copy()
+# --- инициализация поля ---
+df["Накопленные дни отпуска"] = 0
 
-    # --- сохраняем все исключения в одном листе ---
-    if not df_exceptions_removed.empty:
-        # добавим столбец с типом/источником исключения (по желанию можно убрать)
-        df_exceptions_removed["Источник_исключения"] = sheet_name
+# --- условия ---
+mask_180_730 = (df["Стаж, дней"] > 180) & (df["Стаж, дней"] < 731)
+mask_731_plus = df["Стаж, дней"] >= 731
 
-        if os.path.exists(exceptions_file):
-            try:
-                # читаем уже накопленные исключения
-                df_old = pd.read_excel(exceptions_file, sheet_name="exceptions")
-                df_all = pd.concat([df_old, df_exceptions_removed], ignore_index=True)
-            except Exception:
-                # если файл битый или листа нет — начинаем с нуля
-                df_all = df_exceptions_removed.copy()
-        else:
-            df_all = df_exceptions_removed.copy()
+# --- 180–730 дней → otpusk.xlsx ---
+df.loc[mask_180_730, "Накопленные дни отпуска"] = (
+    df.loc[mask_180_730, "Таб Номер"].map(otpusk_map)
+)
 
-        # перезаписываем файл целиком одним листом
-        with pd.ExcelWriter(exceptions_file, mode="w", engine="openpyxl") as writer:
-            df_all.to_excel(writer, sheet_name="exceptions", index=False)
+# --- 731+ дней → (24 + доп + северные) * 2 ---
+df.loc[mask_731_plus, "Накопленные дни отпуска"] = (
+    (24 + df.loc[mask_731_plus, "Таб Номер"].map(sprav_map)) * 2
+)
 
-    # --- возвращаем df без исключений ---
-    return df.loc[~mask].copy()
+# --- если не нашли значение → 0 ---
+df["Накопленные дни отпуска"] = df["Накопленные дни отпуска"].fillna(0)
+
+# --- выгрузка ---
+df.to_excel("burnout_rate.xlsx", index=False)
