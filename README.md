@@ -1,25 +1,4 @@
-# --- очистка переносов строк без превращения NaN в "nan"
-obj_cols = df.select_dtypes(include=['object']).columns
+# удаление строк, где 'Поле 1' пустое или NaN
+df = df[df['Поле 1'].notna() & (df['Поле 1'].astype(str).str.strip() != '')]
 
-for col in obj_cols:
-    s = df[col]
-
-    # чистим только там, где значение не NaN
-    mask = s.notna()
-    s2 = (
-        s[mask]
-        .str.replace('\n', ' ', regex=False)
-        .str.replace('\r', ' ', regex=False)
-        .str.strip()
-    )
-    df.loc[mask, col] = s2
-
-# --- приводим "псевдопустые" значения к NA
-df[obj_cols] = df[obj_cols].replace(
-    {'': pd.NA, ' ': pd.NA, '-': pd.NA, 'nan': pd.NA, 'NaN': pd.NA, 'None': pd.NA, 'none': pd.NA}
-)
-
-# --- удаляем строки, которые после чистки полностью пустые
-df = df.dropna(how='all')
-
-print('--- переносы строк очищены; пустые строки удалены.')
+print('--- строки с пустым значением в поле "Поле 1" удалены.')
